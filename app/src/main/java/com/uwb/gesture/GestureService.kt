@@ -84,10 +84,10 @@ class GestureService : Service() {
      */
     fun processUWBData(left: FloatArray, right: FloatArray, top: FloatArray) {
         if (!isRunning) return
-        // val gesture = classifier.classify(left, right, top)
-        // Log.d(tag, "Detected: ${gesture.label}")
-        // executeAction(gesture)
-        // onGestureDetected?.invoke(gesture)
+        val gesture = classifier.classify(left, right, top)
+        Log.d(tag, "Detected: ${gesture.label}")
+        executeAction(gesture)
+        onGestureDetected?.invoke(gesture)
     }
 
     // ── Action Dispatcher ────────────────────────────────────────────────────

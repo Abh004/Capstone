@@ -7,6 +7,7 @@ import android.content.Context
 import android.util.Log
 import java.nio.FloatBuffer
 import kotlin.math.abs
+import kotlin.math.exp
 import kotlin.math.log10
 
 class UWBClassifier(context: Context) : AutoCloseable {
@@ -49,6 +50,7 @@ class UWBClassifier(context: Context) : AutoCloseable {
      * Each FloatArray = 8192 floats (128 time-steps × 64 range-bins), row-major.
      * index = timeStep * 64 + rangeBin
      */
+
     private fun preprocess(
         left:  FloatArray,
         right: FloatArray,
@@ -57,7 +59,7 @@ class UWBClassifier(context: Context) : AutoCloseable {
         require(left.size == 8192 && right.size == 8192 && top.size == 8192) {
             "Each receiver array must be 128×64 = 8192 floats"
         }
-        // Flat NCHW tensor: [1, 3, 128, 64] = 24576 floats
+
         val tensor = FloatArray(3 * 128 * 64)
         val channels = arrayOf(left, right, top)
 
@@ -71,7 +73,24 @@ class UWBClassifier(context: Context) : AutoCloseable {
                 }
             }
         }
+
+        // Match training pipeline: divide by max if max > 0.01
+        val maxVal = tensor.max()
+        if (maxVal > 0.01f) {
+            for (i in tensor.indices) tensor[i] /= maxVal
+        }
+
         return tensor
+    }
+
+    /**
+     * Converts raw logits to softmax probabilities.
+     */
+    private fun softmax(logits: FloatArray): FloatArray {
+        val maxLogit = logits.max()
+        val expScores = logits.map { exp((it - maxLogit).toDouble()) }
+        val sumExp = expScores.sum()
+        return FloatArray(logits.size) { i -> (expScores[i] / sumExp).toFloat() }
     }
 
     /**
@@ -95,22 +114,45 @@ class UWBClassifier(context: Context) : AutoCloseable {
             val inputName = session.inputNames.first()
             val results   = session.run(mapOf(inputName to inputTensor))
 
-            @Suppress("UNCHECKED_CAST")
-            val scores = (results[0].value as Array<FloatArray>)[0]
+            val outputValue = results[0].value
+
+            val logits: FloatArray = when (outputValue) {
+                is Array<*> -> {
+                    @Suppress("UNCHECKED_CAST")
+                    (outputValue as Array<FloatArray>)[0]
+                }
+                is FloatArray -> outputValue
+                else -> {
+                    val tensor = results[0] as OnnxTensor
+                    val buf = tensor.floatBuffer
+                    FloatArray(buf.remaining()) { buf.get() }
+                }
+            }
 
             inputTensor.close()
             results.close()
 
-            val classIndex = scores.indices.maxByOrNull { scores[it] } ?: -1
-            val confidence = if (classIndex >= 0) scores[classIndex] else 0f
+            // Convert logits → probabilities
+            val probabilities = softmax(logits)
 
+            val classIndex = probabilities.indices.maxByOrNull { probabilities[it] } ?: -1
+            val confidence  = if (classIndex >= 0) probabilities[classIndex] else 0f
+
+            Log.d(tag, "Logits: ${logits.toList()}")
+            Log.d(tag, "Probs : ${probabilities.map { "%.3f".format(it) }}")
             Log.d(tag, "Class=$classIndex  conf=${"%.1f".format(confidence * 100)}%")
 
-            if (confidence < 0.6f) GestureAction.EMPTY
-            else gestureMap[classIndex] ?: GestureAction.UNKNOWN
+            // Confidence threshold — lower if model isn't confident enough on real data
+            if (confidence < 0.6f) {
+                Log.d(tag, "Below threshold — returning EMPTY")
+                GestureAction.EMPTY
+            } else {
+                gestureMap[classIndex] ?: GestureAction.UNKNOWN
+            }
 
         } catch (e: Exception) {
-            Log.e(tag, "classify() failed: ${e.message}")
+            Log.e(tag, "classify() EXCEPTION: ${e.javaClass.name}: ${e.message}")
+            e.printStackTrace()
             GestureAction.UNKNOWN
         }
     }

@@ -7,10 +7,10 @@ import android.content.ServiceConnection
 import android.os.Build
 import android.os.Bundle
 import android.os.IBinder
+import android.util.Log
 import android.widget.Button
 import android.widget.TextView
 import androidx.appcompat.app.AppCompatActivity
-import com.uwb.gesture.GestureAction
 import com.uwb.gesture.GestureService
 
 class MainActivity : AppCompatActivity() {
@@ -21,7 +21,6 @@ class MainActivity : AppCompatActivity() {
     private lateinit var tvStatus:      TextView
     private lateinit var tvGesture:     TextView
     private lateinit var tvAction:      TextView
-    private lateinit var btnPermission: Button
     private lateinit var btnTest:       Button
 
     private val connection = object : ServiceConnection {
@@ -51,7 +50,6 @@ class MainActivity : AppCompatActivity() {
         tvStatus      = findViewById<TextView>(R.id.tvStatus)
         tvGesture     = findViewById<TextView>(R.id.tvGesture)
         tvAction      = findViewById<TextView>(R.id.tvAction)
-        btnPermission = findViewById<Button>(R.id.btn_permission)
         btnTest       = findViewById<Button>(R.id.btnTest)
 
         // Start GestureService
@@ -69,14 +67,30 @@ class MainActivity : AppCompatActivity() {
                 tvStatus.text = "Status: Service not connected yet"
                 return@setOnClickListener
             }
-            tvStatus.text = "Status: Running inference..."
 
-            val left  = FloatArray(128 * 64) { 0f }
-            val right = FloatArray(128 * 64) { 0f }
-            val top   = FloatArray(128 * 64) { 0f }
+            try {
+                fun loadCsv(filename: String): FloatArray {
+                    val lines = assets.open(filename).bufferedReader().readLines()
+                    Log.d("MainActivity", "Loaded $filename: ${lines.size} lines")
+                    return FloatArray(lines.size) { lines[it].trim().toFloat() }
+                }
 
-            gestureService?.processUWBData(left, right, top)
-            tvStatus.text = "Status: Inference complete ✓"
+                tvStatus.text = "Status: Loading CSV files..."
+                val left  = loadCsv("test_left.csv")
+                val right = loadCsv("test_right.csv")
+                val top   = loadCsv("test_top.csv")
+
+                Log.d("MainActivity", "left=${left.size} right=${right.size} top=${top.size}")
+                Log.d("MainActivity", "left[0]=${left[0]} left[100]=${left[100]}")
+
+                tvStatus.text = "Status: Running inference on G4 sample..."
+                gestureService?.processUWBData(left, right, top)
+                tvStatus.text = "Status: Inference complete ✓"
+
+            } catch (e: Exception) {
+                Log.e("MainActivity", "CSV load failed: ${e.message}")
+                tvStatus.text = "Status: CSV load failed — ${e.message}"
+            }
         }
     }
 
