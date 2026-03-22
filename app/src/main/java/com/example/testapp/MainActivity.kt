@@ -17,7 +17,7 @@ class MainActivity : AppCompatActivity() {
 
     private var gestureService: GestureService? = null
     private var isBound = false
-
+    private var currentGesture = 1
     private lateinit var tvStatus:      TextView
     private lateinit var tvGesture:     TextView
     private lateinit var tvAction:      TextView
@@ -68,29 +68,29 @@ class MainActivity : AppCompatActivity() {
                 return@setOnClickListener
             }
 
+            val gesture = "G$currentGesture"
+            tvStatus.text = "Status: Testing $gesture..."
+
             try {
                 fun loadCsv(filename: String): FloatArray {
-                    val lines = assets.open(filename).bufferedReader().readLines()
-                    Log.d("MainActivity", "Loaded $filename: ${lines.size} lines")
+                    val lines = assets.open("output/$filename").bufferedReader().readLines()
+                    Log.d("MainActivity", "Loaded output/$filename: ${lines.size} lines")
                     return FloatArray(lines.size) { lines[it].trim().toFloat() }
                 }
 
-                tvStatus.text = "Status: Loading CSV files..."
-                val left  = loadCsv("test_left.csv")
-                val right = loadCsv("test_right.csv")
-                val top   = loadCsv("test_top.csv")
+                val left  = loadCsv("test_left_$gesture.csv")
+                val right = loadCsv("test_right_$gesture.csv")
+                val top   = loadCsv("test_top_$gesture.csv")
 
-                Log.d("MainActivity", "left=${left.size} right=${right.size} top=${top.size}")
-                Log.d("MainActivity", "left[0]=${left[0]} left[100]=${left[100]}")
-
-                tvStatus.text = "Status: Running inference on G4 sample..."
                 gestureService?.processUWBData(left, right, top)
-                tvStatus.text = "Status: Inference complete ✓"
+                tvStatus.text = "Status: $gesture inference complete ✓"
 
             } catch (e: Exception) {
+                tvStatus.text = "Status: Failed — ${e.message}"
                 Log.e("MainActivity", "CSV load failed: ${e.message}")
-                tvStatus.text = "Status: CSV load failed — ${e.message}"
             }
+
+            currentGesture = if (currentGesture >= 12) 1 else currentGesture + 1
         }
     }
 
