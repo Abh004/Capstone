@@ -94,24 +94,35 @@ class GestureService : Service() {
 
     private fun executeAction(gesture: GestureAction) {
         when (gesture) {
-            GestureAction.SWIPE_LR      -> sendMediaKey(android.view.KeyEvent.KEYCODE_MEDIA_NEXT)
-            GestureAction.SWIPE_RL      -> sendMediaKey(android.view.KeyEvent.KEYCODE_MEDIA_PREVIOUS)
-            GestureAction.INWARD_PUSH   -> sendMediaKey(android.view.KeyEvent.KEYCODE_MEDIA_PLAY_PAUSE)
-            GestureAction.CLOCKWISE     -> adjustVolume(AudioManager.ADJUST_RAISE)
+            GestureAction.SWIPE_LR -> sendMediaKey(android.view.KeyEvent.KEYCODE_MEDIA_NEXT)
+            GestureAction.SWIPE_RL -> sendMediaKey(android.view.KeyEvent.KEYCODE_MEDIA_PREVIOUS)
+            GestureAction.INWARD_PUSH -> sendMediaKey(android.view.KeyEvent.KEYCODE_MEDIA_PLAY_PAUSE)
+            GestureAction.CLOCKWISE -> adjustVolume(AudioManager.ADJUST_RAISE)
             GestureAction.ANTICLOCKWISE -> adjustVolume(AudioManager.ADJUST_LOWER)
-            GestureAction.SWIPE_UD      -> broadcastScroll("SCROLL_UP")
-            GestureAction.SWIPE_DU      -> broadcastScroll("SCROLL_DOWN")
-            GestureAction.EMPTY         -> { /* intentional no-op */ }
+            GestureAction.SWIPE_UD -> broadcastScroll("SCROLL_UP")
+            GestureAction.SWIPE_DU -> broadcastScroll("SCROLL_DOWN")
+            GestureAction.EMPTY -> { /* intentional no-op */
+            }
+
             else -> Log.d(tag, "No vehicle action mapped for: $gesture")
         }
     }
 
+    // Replace the sendMediaKey method in GestureService.kt
     private fun sendMediaKey(keyCode: Int) {
-        val down = android.view.KeyEvent(android.view.KeyEvent.ACTION_DOWN, keyCode)
-        val up   = android.view.KeyEvent(android.view.KeyEvent.ACTION_UP,   keyCode)
-        audioManager.dispatchMediaKeyEvent(down)
-        audioManager.dispatchMediaKeyEvent(up)
-        Log.d(tag, "Media key sent: $keyCode")
+        val eventTime = android.os.SystemClock.uptimeMillis()
+
+        // Create the Down event
+        val downIntent = Intent(Intent.ACTION_MEDIA_BUTTON)
+        downIntent.putExtra(Intent.EXTRA_KEY_EVENT, android.view.KeyEvent(eventTime, eventTime, android.view.KeyEvent.ACTION_DOWN, keyCode, 0))
+        sendOrderedBroadcast(downIntent, null)
+
+        // Create the Up event
+        val upIntent = Intent(Intent.ACTION_MEDIA_BUTTON)
+        upIntent.putExtra(Intent.EXTRA_KEY_EVENT, android.view.KeyEvent(eventTime, eventTime, android.view.KeyEvent.ACTION_UP, keyCode, 0))
+        sendOrderedBroadcast(upIntent, null)
+
+        Log.d(tag, "System broadcast media key sent: $keyCode")
     }
 
     private fun adjustVolume(direction: Int) {
@@ -130,7 +141,7 @@ class GestureService : Service() {
 
     private fun startForegroundCompat() {
         val channelId = "UWB_GESTURE_CHANNEL"
-        val manager   = getSystemService(Context.NOTIFICATION_SERVICE) as NotificationManager
+        val manager = getSystemService(Context.NOTIFICATION_SERVICE) as NotificationManager
 
         // NotificationChannel only exists on API 26+
         if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.O) {
