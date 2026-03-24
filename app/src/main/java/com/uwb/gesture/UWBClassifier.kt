@@ -83,9 +83,7 @@ class UWBClassifier(context: Context) : AutoCloseable {
         return tensor
     }
 
-    /**
-     * Converts raw logits to softmax probabilities.
-     */
+    // Converts raw logits to softmax probabilities.
     private fun softmax(logits: FloatArray): FloatArray {
         val maxLogit = logits.max()
         val expScores = logits.map { exp((it - maxLogit).toDouble()) }
@@ -93,9 +91,7 @@ class UWBClassifier(context: Context) : AutoCloseable {
         return FloatArray(logits.size) { i -> (expScores[i] / sumExp).toFloat() }
     }
 
-    /**
-     * Full inference: 3 raw receiver arrays → GestureAction
-     */
+    // Full inference: 3 raw receiver arrays → GestureAction
     fun classify(
         left:  FloatArray,
         right: FloatArray,

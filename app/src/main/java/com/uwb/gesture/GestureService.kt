@@ -33,7 +33,7 @@ class GestureService : Service() {
         fun getService(): GestureService = this@GestureService
     }
 
-    // ── Lifecycle ────────────────────────────────────────────────────────────
+    // Lifecycle
 
     override fun onCreate() {
         super.onCreate()
@@ -75,7 +75,7 @@ class GestureService : Service() {
         super.onDestroy()
     }
 
-    // ── Public API (called by MainActivity when sensor data arrives) ─────────
+    // Public API (called by MainActivity when sensor data arrives)
 
     /**
      * Feed this method with real UWB sensor data when hardware is available.
@@ -93,8 +93,7 @@ class GestureService : Service() {
         onGestureDetected?.invoke(gesture)
     }
 
-    // ── Action Dispatcher ────────────────────────────────────────────────────
-
+    // Action Dispatcher
     private fun executeAction(gesture: GestureAction) {
         when (gesture) {
             GestureAction.SWIPE_LR -> sendMediaKey(android.view.KeyEvent.KEYCODE_MEDIA_NEXT)
@@ -123,13 +122,11 @@ class GestureService : Service() {
             val keyEventDown = android.view.KeyEvent(eventTime, eventTime, android.view.KeyEvent.ACTION_DOWN, keyCode, 0)
             val keyEventUp = android.view.KeyEvent(eventTime, eventTime, android.view.KeyEvent.ACTION_UP, keyCode, 0)
 
-            // Send to the first active controller (usually the current playing app)
             controllers[0].dispatchMediaButtonEvent(keyEventDown)
             controllers[0].dispatchMediaButtonEvent(keyEventUp)
             Log.d(tag, "Media key $keyCode sent to session: ${controllers[0].packageName}")
         } else {
             Log.e(tag, "No active media sessions found. Ensure Notification Access is granted.")
-            // Fallback to your old broadcast method if no session is active
         }
     }
 
@@ -145,7 +142,7 @@ class GestureService : Service() {
         sendBroadcast(Intent("com.uwb.gesture.$action"))
     }
 
-    // ── Foreground Notification ──────────────────────────────────────────────
+    // Foreground Notification
 
     private fun startForegroundCompat() {
         val channelId = "UWB_GESTURE_CHANNEL"
