@@ -12,6 +12,9 @@ import android.os.Binder
 import android.os.Build
 import android.os.IBinder
 import android.util.Log
+import android.media.session.MediaSessionManager
+import android.content.ComponentName
+import com.example.testapp.MediaNotificationListener
 
 class GestureService : Service() {
 
@@ -108,21 +111,26 @@ class GestureService : Service() {
         }
     }
 
-    // Replace the sendMediaKey method in GestureService.kt
     private fun sendMediaKey(keyCode: Int) {
-        val eventTime = android.os.SystemClock.uptimeMillis()
+        val mm = getSystemService(Context.MEDIA_SESSION_SERVICE) as MediaSessionManager
+        val componentName = ComponentName(this, MediaNotificationListener::class.java)
 
-        // Create the Down event
-        val downIntent = Intent(Intent.ACTION_MEDIA_BUTTON)
-        downIntent.putExtra(Intent.EXTRA_KEY_EVENT, android.view.KeyEvent(eventTime, eventTime, android.view.KeyEvent.ACTION_DOWN, keyCode, 0))
-        sendOrderedBroadcast(downIntent, null)
+        // Get all active sessions
+        val controllers = mm.getActiveSessions(componentName)
 
-        // Create the Up event
-        val upIntent = Intent(Intent.ACTION_MEDIA_BUTTON)
-        upIntent.putExtra(Intent.EXTRA_KEY_EVENT, android.view.KeyEvent(eventTime, eventTime, android.view.KeyEvent.ACTION_UP, keyCode, 0))
-        sendOrderedBroadcast(upIntent, null)
+        if (controllers.isNotEmpty()) {
+            val eventTime = android.os.SystemClock.uptimeMillis()
+            val keyEventDown = android.view.KeyEvent(eventTime, eventTime, android.view.KeyEvent.ACTION_DOWN, keyCode, 0)
+            val keyEventUp = android.view.KeyEvent(eventTime, eventTime, android.view.KeyEvent.ACTION_UP, keyCode, 0)
 
-        Log.d(tag, "System broadcast media key sent: $keyCode")
+            // Send to the first active controller (usually the current playing app)
+            controllers[0].dispatchMediaButtonEvent(keyEventDown)
+            controllers[0].dispatchMediaButtonEvent(keyEventUp)
+            Log.d(tag, "Media key $keyCode sent to session: ${controllers[0].packageName}")
+        } else {
+            Log.e(tag, "No active media sessions found. Ensure Notification Access is granted.")
+            // Fallback to your old broadcast method if no session is active
+        }
     }
 
     private fun adjustVolume(direction: Int) {
